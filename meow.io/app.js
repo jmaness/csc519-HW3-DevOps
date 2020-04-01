@@ -8,6 +8,15 @@ var indexRouter = require('./routes/index');
 var uploadRouter = require('./routes/upload');
 var factRouter = require('./routes/fact');
 
+const util = require('util');
+const db = require('./data/db');
+const redis = require('redis');
+const client = redis.createClient(6379, '127.0.0.1', {});
+const clientLpush = util.promisify(client.lpush).bind(client);
+const clientLtrim = util.promisify(client.ltrim).bind(client);
+const clientLpop = util.promisify(client.lpop).bind(client);
+
+
 var app = express();
 
 // view engine setup
@@ -39,5 +48,20 @@ app.use(function(err, req, res, next) {
   res.status(err.status || 500);
   res.render('error');
 });
+
+
+// Process uploaded images
+const uploadQueueKey = 'meow-upload-queue';
+const uploadCacheKey = 'meow-recent-uploads';
+setInterval(async function() { 
+  var img = await clientLpop(uploadQueueKey);
+
+  while (img) {
+    await db.cat(img);
+    await clientLpush(uploadCacheKey, img);
+    await clientLtrim(uploadCacheKey, 0, 4);
+    img = await clientLpop(uploadQueueKey);
+  }
+}, 100);
 
 module.exports = app;

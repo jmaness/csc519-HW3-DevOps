@@ -8,14 +8,20 @@ const fs = require('fs');
 const redis = require('redis');
 let client = redis.createClient(6379, '127.0.0.1', {});
 
+const recentKey = 'recent';
+
 ///////////// GLOBAL HOOK
 
 // Add hook to make it easier to get all visited URLS.
 app.use(function (req, res, next) {
   console.log(req.method, req.url);
 
-  // Task 2 ... INSERT HERE.
-  // TODO: Store recent routes
+  // Task 2
+  // Store recent routes
+  if (req.url !== '/recent') {
+    client.lpush(recentKey, req.url);
+    client.ltrim(recentKey, 0, 4);
+  }
 
   next(); // Passing the request to the next handler in the stack.
 });
@@ -34,8 +40,25 @@ app.get('/test', function (req, res) {
 })
 
 // Task 1 ===========================================
+// Create two routes, `/get` and `/set`.
 
-// TODO: Create two routes, `/get` and `/set`.
+app.get('/get', function(req, res) {
+    var key = req.query.key;
+    client.get(key, function(err, value) {
+        res.send(value);
+    });
+});
+
+app.get('/set', function(req, res) {
+    var key = req.query.key;
+    var expireTime = 10;
+    var value = `this message will self-destruct in ${expireTime} seconds`
+
+    client.set([key, value, 'EX', expireTime], function(err, reply) {
+        res.status(204);
+	      res.end();
+    });
+});
 
 // ===================================================
 
@@ -43,6 +66,12 @@ app.get('/test', function (req, res) {
 // Task 2 ============================================
 
 // TODO: Create a new route, `/recent`
+app.get('/recent', function(req, res) {
+    var key = 'recent';
+    client.lrange([key, 0, 4], function(err, value) {
+        res.send(JSON.stringify(value));
+    });
+});
 
 // ===================================================
 
