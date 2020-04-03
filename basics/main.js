@@ -3,24 +3,27 @@ const app = express();
 
 const multer = require('multer');
 const fs = require('fs');
+const util = require('util');
 
 // REDIS
 const redis = require('redis');
 let client = redis.createClient(6379, '127.0.0.1', {});
+const clientLpush = util.promisify(client.lpush).bind(client);
+const clientLtrim = util.promisify(client.ltrim).bind(client);
 
 const recentKey = 'recent';
 
 ///////////// GLOBAL HOOK
 
 // Add hook to make it easier to get all visited URLS.
-app.use(function (req, res, next) {
+app.use(async function (req, res, next) {
   console.log(req.method, req.url);
 
   // Task 2
   // Store recent routes
   if (req.url !== '/recent') {
-    client.lpush(recentKey, req.url);
-    client.ltrim(recentKey, 0, 4);
+    await clientLpush(recentKey, req.url);
+    await clientLtrim(recentKey, 0, 4);
   }
 
   next(); // Passing the request to the next handler in the stack.
@@ -65,7 +68,7 @@ app.get('/set', function(req, res) {
 
 // Task 2 ============================================
 
-// TODO: Create a new route, `/recent`
+// Create a new route, `/recent`
 app.get('/recent', function(req, res) {
     var key = 'recent';
     client.lrange([key, 0, 4], function(err, value) {
